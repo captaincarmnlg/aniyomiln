@@ -80,13 +80,6 @@ class SettingsTrackingController :
             }
             infoPreference(R.string.tracking_info)
         }
-        preferenceCategory {
-            titleRes = R.string.syncservices
-            trackPreference(trackManager.aniList) {
-                activity?.openInBrowser(AnilistApi.authUrl(), trackManager.aniList.getLogoColor())
-            }
-            infoPreference(R.string.tracking_infotwoway)
-        }
 
         preferenceCategory {
             titleRes = R.string.enhanced_services

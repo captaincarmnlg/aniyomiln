@@ -40,7 +40,6 @@ class Anilist(private val context: Context, id: Int) : TrackService(id) {
 
     private val api by lazy { AnilistApi(client, interceptor) }
 
-    override val supportstwowaytracking: Boolean = true
     override val supportsReadingDates: Boolean = true
 
     private val scorePreference = preferences.anilistScoreType()
