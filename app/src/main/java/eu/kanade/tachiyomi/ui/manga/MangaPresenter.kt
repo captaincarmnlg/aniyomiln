@@ -165,8 +165,6 @@ class MangaPresenter(
         )
 
         // Chapters list - end
-
-        fetchTrackers()
     }
 
     fun getDuplicateLibraryManga(manga: Manga): Manga? {
@@ -402,6 +400,11 @@ class MangaPresenter(
         chapters
             .filter { downloadManager.isChapterDownloaded(it, manga) }
             .forEach { it.status = Download.State.DOWNLOADED }
+    }
+    private fun setReadChapters(chapters: List<ChapterItem>) {
+        chapters
+            .filter { it.chapter_number < 1 }
+            .forEach { it.read = true }
     }
 
     /**
