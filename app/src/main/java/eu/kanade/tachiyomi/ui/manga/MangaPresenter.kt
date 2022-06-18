@@ -445,6 +445,11 @@ class MangaPresenter(
             )
         }
     }
+    private fun setReadChapters(chapters: List<ChapterItem>) {
+        chapters
+            .filter { it.chapter_number < 1 }
+            .forEach { it.read = true }
+    }
 
     /**
      * Requests an updated list of chapters from the source.

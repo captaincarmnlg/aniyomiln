@@ -22,6 +22,7 @@ import eu.kanade.domain.manga.model.toDbManga
 import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.data.library.LibraryUpdateService
 import eu.kanade.tachiyomi.data.preference.PreferencesHelper
+import eu.kanade.tachiyomi.data.track.TrackManager
 import eu.kanade.tachiyomi.databinding.LibraryControllerBinding
 import eu.kanade.tachiyomi.source.LocalSource
 import eu.kanade.tachiyomi.ui.base.controller.RootController
@@ -62,6 +63,8 @@ class LibraryController(
     ActionModeWithToolbar.Callback,
     ChangeMangaCategoriesDialog.Listener,
     DeleteLibraryMangasDialog.Listener {
+
+    private val loggedServices by lazy { trackManager.services.filter { it.isLogged } }
 
     /**
      * Position of the active category.
@@ -313,6 +316,25 @@ class LibraryController(
             }
         }
 
+        /*mangaMap[activeCat]?.filter { it.unreadCount> 0 }?.forEach {
+            val manga = it.manga
+            db.getTracks(it.manga)
+                .asRxObservable()
+                .map { tracks ->
+                    loggedServices.map { service ->
+                        TrackItem(tracks.find { it.sync_id == service.id }, service)
+                    }
+                }
+                .observeOn(AndroidSchedulers.mainThread())
+                .doOnNext {
+                    val supportstwoway = it.find { it.service.supportstwowaytracking }
+                    // ?.track?.last_chapter_read
+
+                    val chaptersread = db.getChapters(manga)?.executeAsBlocking()?.filter { it.chapter_number <= supportstwoway?.track!!.last_chapter_read }
+                    chaptersread.forEach { it.read = true }
+                    db.updateChaptersProgress(chaptersread).executeAsBlocking()
+                }
+        }*/
         // Send the manga map to child fragments after the adapter is updated.
         libraryMangaRelay.call(LibraryMangaEvent(mangaMap))
 
