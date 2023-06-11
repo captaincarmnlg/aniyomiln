@@ -33,14 +33,14 @@ class ReaderPageSheet(
      * Sets the image of this page as the cover of the manga.
      */
     private fun setAsCover() {
-        if (page.status != Page.READY) return
+        if (page.status != Page.State.READY) return
 
         MaterialAlertDialogBuilder(activity)
             .setMessage(R.string.confirm_set_image_as_cover)
             .setPositiveButton(android.R.string.ok) { _, _ ->
                 activity.setAsCover(page)
             }
-            .setNegativeButton(android.R.string.cancel, null)
+            .setNegativeButton(R.string.action_cancel, null)
             .show()
     }
 

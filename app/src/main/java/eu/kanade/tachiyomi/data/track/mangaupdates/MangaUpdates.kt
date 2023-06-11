@@ -4,14 +4,12 @@ import android.content.Context
 import android.graphics.Color
 import androidx.annotation.StringRes
 import eu.kanade.tachiyomi.R
-import eu.kanade.tachiyomi.data.database.models.AnimeTrack
-import eu.kanade.tachiyomi.data.database.models.Track
+import eu.kanade.tachiyomi.data.database.models.manga.MangaTrack
 import eu.kanade.tachiyomi.data.track.MangaTrackService
 import eu.kanade.tachiyomi.data.track.TrackService
 import eu.kanade.tachiyomi.data.track.mangaupdates.dto.copyTo
 import eu.kanade.tachiyomi.data.track.mangaupdates.dto.toTrackSearch
-import eu.kanade.tachiyomi.data.track.model.AnimeTrackSearch
-import eu.kanade.tachiyomi.data.track.model.TrackSearch
+import eu.kanade.tachiyomi.data.track.model.MangaTrackSearch
 
 class MangaUpdates(private val context: Context, id: Long) : TrackService(id), MangaTrackService {
 
@@ -34,11 +32,9 @@ class MangaUpdates(private val context: Context, id: Long) : TrackService(id), M
 
     override fun getLogoColor(): Int = Color.rgb(146, 160, 173)
 
-    override fun getStatusList(): List<Int> {
+    override fun getStatusListManga(): List<Int> {
         return listOf(READING_LIST, COMPLETE_LIST, ON_HOLD_LIST, UNFINISHED_LIST, WISH_LIST)
     }
-
-    override fun getStatusListAnime(): List<Int> = throw Exception("Not used")
 
     override fun getStatus(status: Int): String = with(context) {
         when (status) {
@@ -52,10 +48,8 @@ class MangaUpdates(private val context: Context, id: Long) : TrackService(id), M
     }
 
     override fun getReadingStatus(): Int = READING_LIST
-    override fun getWatchingStatus(): Int = throw Exception("Not used")
 
     override fun getRereadingStatus(): Int = -1
-    override fun getRewatchingStatus(): Int = throw Exception("Not used")
 
     override fun getCompletionStatus(): Int = COMPLETE_LIST
 
@@ -65,12 +59,9 @@ class MangaUpdates(private val context: Context, id: Long) : TrackService(id), M
 
     override fun indexToScore(index: Int): Float = _scoreList[index].toFloat()
 
-    override fun displayScore(track: Track): String = track.score.toString()
-    override fun displayScore(track: AnimeTrack): String {
-        TODO("Not yet implemented")
-    }
+    override fun displayScore(track: MangaTrack): String = track.score.toString()
 
-    override suspend fun update(track: Track, didReadChapter: Boolean): Track {
+    override suspend fun update(track: MangaTrack, didReadChapter: Boolean): MangaTrack {
         if (track.status != COMPLETE_LIST && didReadChapter) {
             track.status = READING_LIST
         }
@@ -78,11 +69,7 @@ class MangaUpdates(private val context: Context, id: Long) : TrackService(id), M
         return track
     }
 
-    override suspend fun update(track: AnimeTrack, didWatchEpisode: Boolean): AnimeTrack {
-        TODO("Not yet implemented")
-    }
-
-    override suspend fun bind(track: Track, hasReadChapters: Boolean): Track {
+    override suspend fun bind(track: MangaTrack, hasReadChapters: Boolean): MangaTrack {
         return try {
             val (series, rating) = api.getSeriesListItem(track)
             series.copyTo(track)
@@ -93,29 +80,17 @@ class MangaUpdates(private val context: Context, id: Long) : TrackService(id), M
         }
     }
 
-    override suspend fun bind(track: AnimeTrack, hasReadChapters: Boolean): AnimeTrack {
-        TODO("Not yet implemented")
-    }
-
-    override suspend fun search(query: String): List<TrackSearch> {
+    override suspend fun searchManga(query: String): List<MangaTrackSearch> {
         return api.search(query)
             .map {
                 it.toTrackSearch(id)
             }
     }
 
-    override suspend fun searchAnime(query: String): List<AnimeTrackSearch> {
-        TODO("Not yet implemented")
-    }
-
-    override suspend fun refresh(track: Track): Track {
+    override suspend fun refresh(track: MangaTrack): MangaTrack {
         val (series, rating) = api.getSeriesListItem(track)
         series.copyTo(track)
         return rating?.copyTo(track) ?: track
-    }
-
-    override suspend fun refresh(track: AnimeTrack): AnimeTrack {
-        TODO("Not yet implemented")
     }
 
     override suspend fun login(username: String, password: String) {
@@ -125,6 +100,6 @@ class MangaUpdates(private val context: Context, id: Long) : TrackService(id), M
     }
 
     fun restoreSession(): String? {
-        return preferences.trackPassword(this)
+        return trackPreferences.trackPassword(this).get()
     }
 }

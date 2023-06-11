@@ -2,11 +2,11 @@ package eu.kanade.tachiyomi.data.track.myanimelist
 
 import android.net.Uri
 import androidx.core.net.toUri
-import eu.kanade.tachiyomi.data.database.models.AnimeTrack
-import eu.kanade.tachiyomi.data.database.models.Track
+import eu.kanade.tachiyomi.data.database.models.anime.AnimeTrack
+import eu.kanade.tachiyomi.data.database.models.manga.MangaTrack
 import eu.kanade.tachiyomi.data.track.TrackManager
 import eu.kanade.tachiyomi.data.track.model.AnimeTrackSearch
-import eu.kanade.tachiyomi.data.track.model.TrackSearch
+import eu.kanade.tachiyomi.data.track.model.MangaTrackSearch
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.network.POST
 import eu.kanade.tachiyomi.network.await
@@ -25,6 +25,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.long
 import okhttp3.FormBody
+import okhttp3.Headers
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody
@@ -62,7 +63,7 @@ class MyAnimeListApi(private val client: OkHttpClient, interceptor: MyAnimeListI
         }
     }
 
-    suspend fun search(query: String): List<TrackSearch> {
+    suspend fun search(query: String): List<MangaTrackSearch> {
         return withIOContext {
             val url = "$baseApiUrl/manga".toUri().buildUpon()
                 // MAL API throws a 400 when the query is over 64 characters...
@@ -108,7 +109,7 @@ class MyAnimeListApi(private val client: OkHttpClient, interceptor: MyAnimeListI
         }
     }
 
-    suspend fun getMangaDetails(id: Int): TrackSearch {
+    suspend fun getMangaDetails(id: Int): MangaTrackSearch {
         return withIOContext {
             val url = "$baseApiUrl/manga".toUri().buildUpon()
                 .appendPath(id.toString())
@@ -119,7 +120,7 @@ class MyAnimeListApi(private val client: OkHttpClient, interceptor: MyAnimeListI
                 .parseAs<JsonObject>()
                 .let {
                     val obj = it.jsonObject
-                    TrackSearch.create(TrackManager.MYANIMELIST).apply {
+                    MangaTrackSearch.create(TrackManager.MYANIMELIST).apply {
                         media_id = obj["id"]!!.jsonPrimitive.long
                         title = obj["title"]!!.jsonPrimitive.content
                         summary = obj["synopsis"]?.jsonPrimitive?.content ?: ""
@@ -170,7 +171,7 @@ class MyAnimeListApi(private val client: OkHttpClient, interceptor: MyAnimeListI
         }
     }
 
-    suspend fun updateItem(track: Track): Track {
+    suspend fun updateItem(track: MangaTrack): MangaTrack {
         return withIOContext {
             val formBodyBuilder = FormBody.Builder()
                 .add("status", track.toMyAnimeListStatus() ?: "reading")
@@ -220,7 +221,7 @@ class MyAnimeListApi(private val client: OkHttpClient, interceptor: MyAnimeListI
         }
     }
 
-    suspend fun findListItem(track: Track): Track? {
+    suspend fun findListItem(track: MangaTrack): MangaTrack? {
         return withIOContext {
             val uri = "$baseApiUrl/manga".toUri().buildUpon()
                 .appendPath(track.media_id.toString())
@@ -256,7 +257,7 @@ class MyAnimeListApi(private val client: OkHttpClient, interceptor: MyAnimeListI
         }
     }
 
-    suspend fun findListItems(query: String, offset: Int = 0): List<TrackSearch> {
+    suspend fun findListItems(query: String, offset: Int = 0): List<MangaTrackSearch> {
         return withIOContext {
             val json = getListPage(offset)
             val obj = json.jsonObject
@@ -329,7 +330,7 @@ class MyAnimeListApi(private val client: OkHttpClient, interceptor: MyAnimeListI
         }
     }
 
-    private fun parseMangaItem(response: JsonObject, track: Track): Track {
+    private fun parseMangaItem(response: JsonObject, track: MangaTrack): MangaTrack {
         val obj = response.jsonObject
         return track.apply {
             val isRereading = obj["is_rereading"]!!.jsonPrimitive.boolean
@@ -404,13 +405,21 @@ class MyAnimeListApi(private val client: OkHttpClient, interceptor: MyAnimeListI
             .appendPath("my_list_status")
             .build()
 
-        fun refreshTokenRequest(refreshToken: String): Request {
+        fun refreshTokenRequest(oauth: OAuth): Request {
             val formBody: RequestBody = FormBody.Builder()
                 .add("client_id", clientId)
-                .add("refresh_token", refreshToken)
+                .add("refresh_token", oauth.refresh_token)
                 .add("grant_type", "refresh_token")
                 .build()
-            return POST("$baseOAuthUrl/token", body = formBody)
+
+            // Add the Authorization header manually as this particular
+            // request is called by the interceptor itself so it doesn't reach
+            // the part where the token is added automatically.
+            val headers = Headers.Builder()
+                .add("Authorization", "Bearer ${oauth.access_token}")
+                .build()
+
+            return POST("$baseOAuthUrl/token", body = formBody, headers = headers)
         }
 
         private fun getPkceChallengeCode(): String {

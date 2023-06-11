@@ -2,13 +2,14 @@ package eu.kanade.tachiyomi.data.updater
 
 import android.content.Context
 import eu.kanade.tachiyomi.BuildConfig
-import eu.kanade.tachiyomi.data.preference.PreferencesHelper
+import eu.kanade.tachiyomi.core.preference.Preference
+import eu.kanade.tachiyomi.core.preference.PreferenceStore
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.network.NetworkHelper
 import eu.kanade.tachiyomi.network.await
 import eu.kanade.tachiyomi.network.parseAs
 import eu.kanade.tachiyomi.util.lang.withIOContext
-import eu.kanade.tachiyomi.util.system.getInstallerPackageName
+import eu.kanade.tachiyomi.util.system.isInstalledFromFDroid
 import uy.kohesive.injekt.injectLazy
 import java.util.Date
 import java.util.concurrent.TimeUnit
@@ -16,11 +17,14 @@ import java.util.concurrent.TimeUnit
 class AppUpdateChecker {
 
     private val networkService: NetworkHelper by injectLazy()
-    private val preferences: PreferencesHelper by injectLazy()
+    private val preferenceStore: PreferenceStore by injectLazy()
+    private val lastAppCheck: Preference<Long> by lazy {
+        preferenceStore.getLong("last_app_check", 0)
+    }
 
     suspend fun checkForUpdate(context: Context, isUserPrompt: Boolean = false): AppUpdateResult {
         // Limit checks to once a day at most
-        if (isUserPrompt.not() && Date().time < preferences.lastAppCheck().get() + TimeUnit.DAYS.toMillis(1)) {
+        if (isUserPrompt.not() && Date().time < lastAppCheck.get() + TimeUnit.DAYS.toMillis(1)) {
             return AppUpdateResult.NoNewUpdate
         }
 
@@ -30,11 +34,11 @@ class AppUpdateChecker {
                 .await()
                 .parseAs<GithubRelease>()
                 .let {
-                    preferences.lastAppCheck().set(Date().time)
+                    lastAppCheck.set(Date().time)
 
                     // Check if latest version is different from current version
                     if (isNewVersion(it.version)) {
-                        if (context.getInstallerPackageName() == "org.fdroid.fdroid") {
+                        if (context.isInstalledFromFDroid()) {
                             AppUpdateResult.NewUpdateFdroidInstallation
                         } else {
                             AppUpdateResult.NewUpdate(it)
@@ -83,8 +87,7 @@ class AppUpdateChecker {
 
 val GITHUB_REPO: String by lazy {
     if (BuildConfig.PREVIEW) {
-        // TODO: CHANGE THIS BACK
-        "jmir1/aniyomi-mpv-beta"
+        "jmir1/aniyomi-preview"
     } else {
         "jmir1/aniyomi"
     }

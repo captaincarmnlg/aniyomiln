@@ -4,17 +4,21 @@ import android.content.Context
 import android.graphics.Color
 import androidx.annotation.StringRes
 import eu.kanade.tachiyomi.R
-import eu.kanade.tachiyomi.data.database.models.AnimeTrack
-import eu.kanade.tachiyomi.data.database.models.Track
+import eu.kanade.tachiyomi.data.database.models.anime.AnimeTrack
+import eu.kanade.tachiyomi.data.database.models.manga.MangaTrack
+import eu.kanade.tachiyomi.data.track.AnimeTrackService
+import eu.kanade.tachiyomi.data.track.MangaTrackService
 import eu.kanade.tachiyomi.data.track.TrackService
 import eu.kanade.tachiyomi.data.track.model.AnimeTrackSearch
-import eu.kanade.tachiyomi.data.track.model.TrackSearch
+import eu.kanade.tachiyomi.data.track.model.MangaTrackSearch
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import uy.kohesive.injekt.injectLazy
+import eu.kanade.domain.track.anime.model.AnimeTrack as DomainAnimeTrack
+import eu.kanade.domain.track.manga.model.MangaTrack as DomainTrack
 
-class Anilist(private val context: Context, id: Long) : TrackService(id) {
+class Anilist(private val context: Context, id: Long) : TrackService(id), MangaTrackService, AnimeTrackService {
 
     companion object {
         const val READING = 1
@@ -42,7 +46,7 @@ class Anilist(private val context: Context, id: Long) : TrackService(id) {
 
     override val supportsReadingDates: Boolean = true
 
-    private val scorePreference = preferences.anilistScoreType()
+    private val scorePreference = trackPreferences.anilistScoreType()
 
     init {
         // If the preference is an int from APIv1, logout user to force using APIv2
@@ -61,7 +65,7 @@ class Anilist(private val context: Context, id: Long) : TrackService(id) {
 
     override fun getLogoColor() = Color.rgb(18, 25, 35)
 
-    override fun getStatusList(): List<Int> {
+    override fun getStatusListManga(): List<Int> {
         return listOf(READING, PLANNING, COMPLETED, REPEATING, PAUSED, DROPPED)
     }
 
@@ -110,6 +114,16 @@ class Anilist(private val context: Context, id: Long) : TrackService(id) {
         }
     }
 
+    override fun get10PointScore(track: DomainTrack): Float {
+        // Score is stored in 100 point format
+        return track.score / 10f
+    }
+
+    override fun get10PointScore(track: DomainAnimeTrack): Float {
+        // Score is stored in 100 point format
+        return track.score / 10f
+    }
+
     override fun indexToScore(index: Int): Float {
         return when (scorePreference.get()) {
             // 10 point
@@ -132,7 +146,7 @@ class Anilist(private val context: Context, id: Long) : TrackService(id) {
         }
     }
 
-    override fun displayScore(track: Track): String {
+    override fun displayScore(track: MangaTrack): String {
         val score = track.score
 
         return when (scorePreference.get()) {
@@ -168,7 +182,7 @@ class Anilist(private val context: Context, id: Long) : TrackService(id) {
         }
     }
 
-    private suspend fun add(track: Track): Track {
+    private suspend fun add(track: MangaTrack): MangaTrack {
         return api.addLibManga(track)
     }
 
@@ -176,7 +190,7 @@ class Anilist(private val context: Context, id: Long) : TrackService(id) {
         return api.addLibAnime(track)
     }
 
-    override suspend fun update(track: Track, didReadChapter: Boolean): Track {
+    override suspend fun update(track: MangaTrack, didReadChapter: Boolean): MangaTrack {
         // If user was using API v1 fetch library_id
         if (track.library_id == null || track.library_id!! == 0L) {
             val libManga = api.findLibManga(track, getUsername().toInt())
@@ -226,7 +240,7 @@ class Anilist(private val context: Context, id: Long) : TrackService(id) {
         return api.updateLibAnime(track)
     }
 
-    override suspend fun bind(track: Track, hasReadChapters: Boolean): Track {
+    override suspend fun bind(track: MangaTrack, hasReadChapters: Boolean): MangaTrack {
         val remoteTrack = api.findLibManga(track, getUsername().toInt())
         return if (remoteTrack != null) {
             track.copyPersonalFrom(remoteTrack)
@@ -266,7 +280,7 @@ class Anilist(private val context: Context, id: Long) : TrackService(id) {
         }
     }
 
-    override suspend fun search(query: String): List<TrackSearch> {
+    override suspend fun searchManga(query: String): List<MangaTrackSearch> {
         return api.search(query)
     }
 
@@ -274,7 +288,7 @@ class Anilist(private val context: Context, id: Long) : TrackService(id) {
         return api.searchAnime(query)
     }
 
-    override suspend fun refresh(track: Track): Track {
+    override suspend fun refresh(track: MangaTrack): MangaTrack {
         val remoteTrack = api.getLibManga(track, getUsername().toInt())
         track.copyPersonalFrom(remoteTrack)
         track.title = remoteTrack.title
@@ -306,17 +320,17 @@ class Anilist(private val context: Context, id: Long) : TrackService(id) {
 
     override fun logout() {
         super.logout()
-        preferences.trackToken(this).delete()
+        trackPreferences.trackToken(this).delete()
         interceptor.setAuth(null)
     }
 
     fun saveOAuth(oAuth: OAuth?) {
-        preferences.trackToken(this).set(json.encodeToString(oAuth))
+        trackPreferences.trackToken(this).set(json.encodeToString(oAuth))
     }
 
     fun loadOAuth(): OAuth? {
         return try {
-            json.decodeFromString<OAuth>(preferences.trackToken(this).get())
+            json.decodeFromString<OAuth>(trackPreferences.trackToken(this).get())
         } catch (e: Exception) {
             null
         }

@@ -1,15 +1,17 @@
 package eu.kanade.tachiyomi.ui.reader.loader
 
 import android.content.Context
-import eu.kanade.domain.manga.model.Manga
+import com.github.junrar.exception.UnsupportedRarV5Exception
+import eu.kanade.domain.entries.manga.model.Manga
 import eu.kanade.tachiyomi.R
-import eu.kanade.tachiyomi.data.download.DownloadManager
-import eu.kanade.tachiyomi.data.preference.PreferencesHelper
-import eu.kanade.tachiyomi.source.LocalSource
-import eu.kanade.tachiyomi.source.Source
-import eu.kanade.tachiyomi.source.SourceManager
+import eu.kanade.tachiyomi.data.download.manga.MangaDownloadManager
+import eu.kanade.tachiyomi.data.download.manga.MangaDownloadProvider
+import eu.kanade.tachiyomi.source.MangaSource
+import eu.kanade.tachiyomi.source.manga.LocalMangaSource
+import eu.kanade.tachiyomi.source.manga.MangaSourceManager
 import eu.kanade.tachiyomi.source.online.HttpSource
 import eu.kanade.tachiyomi.ui.reader.model.ReaderChapter
+import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
 import eu.kanade.tachiyomi.util.system.logcat
 import rx.Completable
 import rx.Observable
@@ -22,12 +24,13 @@ import uy.kohesive.injekt.injectLazy
  */
 class ChapterLoader(
     private val context: Context,
-    private val downloadManager: DownloadManager,
+    private val downloadManager: MangaDownloadManager,
+    private val downloadProvider: MangaDownloadProvider,
     private val manga: Manga,
-    private val source: Source,
+    private val source: MangaSource,
 ) {
 
-    private val preferences: PreferencesHelper by injectLazy()
+    private val readerPreferences: ReaderPreferences by injectLazy()
 
     /**
      * Returns a completable that assigns the page loader and loads the its pages. It just
@@ -62,7 +65,7 @@ class ChapterLoader(
 
                 // If the chapter is partially read, set the starting page to the last the user read
                 // otherwise use the requested page.
-                if (!chapter.chapter.read || preferences.preserveReadingPosition()) {
+                if (!chapter.chapter.read || readerPreferences.preserveReadingPosition().get()) {
                     chapter.requestedPage = chapter.chapter.last_page_read
                 }
             }
@@ -83,17 +86,21 @@ class ChapterLoader(
         val dbChapter = chapter.chapter
         val isDownloaded = downloadManager.isChapterDownloaded(dbChapter.name, dbChapter.scanlator, manga.title, manga.source, skipCache = true)
         return when {
-            isDownloaded -> DownloadPageLoader(chapter, manga, source, downloadManager)
+            isDownloaded -> DownloadPageLoader(chapter, manga, source, downloadManager, downloadProvider)
             source is HttpSource -> HttpPageLoader(chapter, source)
-            source is LocalSource -> source.getFormat(chapter.chapter).let { format ->
+            source is LocalMangaSource -> source.getFormat(chapter.chapter).let { format ->
                 when (format) {
-                    is LocalSource.Format.Directory -> DirectoryPageLoader(format.file)
-                    is LocalSource.Format.Zip -> ZipPageLoader(format.file)
-                    is LocalSource.Format.Rar -> RarPageLoader(format.file)
-                    is LocalSource.Format.Epub -> EpubPageLoader(format.file)
+                    is LocalMangaSource.Format.Directory -> DirectoryPageLoader(format.file)
+                    is LocalMangaSource.Format.Zip -> ZipPageLoader(format.file)
+                    is LocalMangaSource.Format.Rar -> try {
+                        RarPageLoader(format.file)
+                    } catch (e: UnsupportedRarV5Exception) {
+                        error(context.getString(R.string.loader_rar5_error))
+                    }
+                    is LocalMangaSource.Format.Epub -> EpubPageLoader(format.file)
                 }
             }
-            source is SourceManager.StubSource -> throw source.getSourceNotInstalledException()
+            source is MangaSourceManager.StubMangaSource -> throw source.getSourceNotInstalledException()
             else -> error(context.getString(R.string.loader_not_implemented_error))
         }
     }
